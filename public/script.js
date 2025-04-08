@@ -175,6 +175,17 @@ function showListOfUsers(){
         .catch(err => showError('Could not get user list: ' + err));
 }
 
+async function getUserInfo(authenticationToken){
+    $('#loginScreen').classList.add('hidden');
+    $('#registerScreen').classList.add('hidden');
+    resetInputs();
+    showError('');
+    // reveal home screen
+    $('#homeScreen').classList.remove('hidden');
+
+    
+}
+
 function showUserInList(doc){
     // add doc.username to #userlist
     var item = document.createElement('li');
@@ -195,7 +206,7 @@ function resetInputs(){
     }
 }
 
-async function getUserInfo()
+
 
 function openHomeScreen(doc){
     // hide other screens, clear inputs, clear error

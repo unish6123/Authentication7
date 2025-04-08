@@ -126,6 +126,19 @@ app.delete('/users/:username',(req,res)=>{
         .catch(error => res.send({ error }));   
 })
 
+app.get('/users/:authtoken', (req, res) => {
+    const { authToken } = req.params;
+    db.findOne({ authToken })
+        .then(doc => {
+            if (doc) {
+                res.send({username: doc.username, email: doc.email, name: doc.name});
+            } else {
+                res.send({ error: 'Invalid auth token.' });
+            }
+        })
+        .catch(error => res.send({ error }));
+});
+
 // default route
 app.all('*',(req,res)=>{res.status(404).send('Invalid URL.')});
 
