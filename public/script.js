@@ -18,31 +18,32 @@ $('#loginBtn').addEventListener('click',()=>{
     // check to make sure username/password aren't blank
     if(!$('#loginUsername').value || !$('#loginPassword').value)
         return;
-    // TODO: 
-    //   GET /users/{username}, where {username} is $('#loginUsername').value
-    //     decode response from json to object called doc
-    //     if doc.error, call showError(doc.error)
-    //     otherwise, if doc.password is NOT the same as $('#loginPassword').value,
-    //       call showError('Username and password do not match.')
-    //     otherwise, call openHomeScreen(doc)
-    //   use .catch(err=>showError('ERROR: '+err)}) to show any other errors
 
     const username = $("#loginUsername").value
     const password = $("#loginPassword").value
     console.log("The username is:", username, "and the passoword is ", password)
 
-    fetch(`/users/${username}`)
-        .then(res => res.json())
-        .then(doc => {
-            if (doc.error) {
-                showError(doc.error);
-            } else if (doc.password !== password) {
-                showError('Username and password do not match.');
-            } else {
-                openHomeScreen(doc);
-            }
-        })
-        .catch(err => showError('ERROR: ' + err));
+    fetch(`/users/auth`,{
+        method:"POST",
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ username: username,password:password})
+    })
+    .then(res=>res.json())
+    .then(doc=>{
+        if (doc.error){
+            showError(doc.error);
+        }
+        else if (doc.match){
+            authenticationToken = doc.authenticationToken;
+            getUserInfo(authenticationToken);
+            
+        }
+        else {
+            showError('Username and password do not match.');
+        }
+    })
+    .catch(err=>showError('ERROR: '+err));
+        
 
 });
 
@@ -75,7 +76,7 @@ $('#registerBtn').addEventListener('click',()=>{
         return;
     }
 
-    fetch('/users',{
+    fetch('/users/register',{
         method:"POST",
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(data)
@@ -87,7 +88,8 @@ $('#registerBtn').addEventListener('click',()=>{
         }
         else {
             authenticationToken = doc.authToken;
-            console.log("The authentication token is :", authenticationToken)
+            // console.log("The authentication token is :", authenticationToken)
+            getUserInfo(authenticationToken);
             alert("You have successfully registered. Please log in to continue.");
         }
     })
@@ -100,22 +102,16 @@ $('#updateBtn').addEventListener('click',()=>{
         showError('Fields cannot be blank.');
         return;
     }
+    const username = $('#username').innerText;
     // grab all user info from input fields
     var data = {
         name: $('#updateName').value,
-        email: $('#updateEmail').value
+        email: $('#updateEmail').value,
+        token : authenticationToken,
+        username:username
     };
-    // TODO: 
-    //   PATCH /users/{username}, where {username} is $('#username').innerText
-    //     convert data (defined above) to json, and send via PATCH to /users/{username}
-    //     decode response from json to object called doc
-    //     if doc.error, showError(doc.error)
-    //     otherwise, if doc.ok,
-    //       alert("Your name and email have been updated.");
-    //   use .catch(err=>showError('ERROR: '+err)}) to show any other errors
-    const username = $('#username').innerText;
     
-    fetch(`/users/${username}`,{
+    fetch(`/users/update`,{
         method:'PATCH',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(data)
@@ -136,23 +132,19 @@ $('#deleteBtn').addEventListener('click',()=>{
     // confirm that the user wants to delete
     if(!confirm("Are you sure you want to delete your profile?"))
         return;
-    // TODO: 
-    //   DELETE /users/{username}, where {username} is $('#username').innerText
-    //     decode response from json to object called doc
-    //     if doc.error, showError(doc.error)
-    //     otherwise, openLoginScreen()
-    //   use .catch(err=>showError('ERROR: '+err)}) to show any other errors
+ 
     const username = $('#username').innerText;
     console.log("The username is :", username)
-    fetch(`/users/${username}`,{
+    fetch(`/users/${username}/${authenticationToken}`,{
         method:'DELETE'
     })
     .then(res=>res.json())
     .then(doc=>{
         if (doc.error){
-            showError(doc.error);
+            showError(doc.message);
         }
         else {
+            authenticationToken = "";
             openLoginScreen();
         }
     })
@@ -176,14 +168,31 @@ function showListOfUsers(){
 }
 
 async function getUserInfo(authenticationToken){
-    $('#loginScreen').classList.add('hidden');
-    $('#registerScreen').classList.add('hidden');
-    resetInputs();
-    showError('');
-    // reveal home screen
-    $('#homeScreen').classList.remove('hidden');
-
     
+
+    fetch(`/userInfo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({authToken: authenticationToken })
+    })
+        .then(res => {
+            if (res.status === 401) {
+                showError('You are not authorized to view this page.');
+                return;
+            }
+            return res.json();
+    })
+        
+        .then(doc => {
+            if (doc.error) {
+                showError(doc.error);
+            } else {
+                openHomeScreen(doc);
+            }
+        })
+        .catch(err => showError('ERROR: ' + err));
+
+
 }
 
 function showUserInList(doc){
@@ -234,6 +243,7 @@ function openLoginScreen(){
     $('#homeScreen').classList.add('hidden');
     resetInputs();
     showError('');
+    authenticationToken = " ";
     // reveal login screen
     $('#loginScreen').classList.remove('hidden');
 }

@@ -31,17 +31,31 @@ app.get('/users',(req,res)=>{
     db.find({}).then(records=>res.send(records)).catch(error=>res.send({error}));
 });
 
+
+
 //TODO:
 // create route to get user record (GET /users/:username)
 //   use db.findOne to get user record
 //     if record is found, send it
 //     otherwise, send {error:'Username not found.'}
 //   use .catch(error=>res.send({error})) to catch and send other errors
-app.get('/users/:username',(req,res)=>{
-    db.findOne({username:req.params.username}).then(doc=>{
-        if(doc) res.send(doc);
-        else res.send({error:'Username not found.'});
-    }).catch(error=>res.send({error}));
+app.post('/users/auth',async(req,res)=>{
+    
+    const {username, password} = req.body;
+
+    await db.findOne({username:username}).then(doc=>{
+        if (!doc){
+            return res.send({error:'Username not found.'});
+        }
+        const hashedPassword = doc.password;
+       
+
+        const matched = bcrypt.compareSync(password, hashedPassword);
+        res.json({match: matched, authenticationToken:doc.authToken});
+        console.log(matched);
+
+        
+    }).catch(error=>res.json({error}));
 });
 
 //TODO:
@@ -54,7 +68,7 @@ app.get('/users/:username',(req,res)=>{
 //       if all goes well, send returned document
 //   use .catch(error=>res.send({error})) to catch and send other errors
 
-app.post('/users',async(req,res)=>{
+app.post('/users/register',async(req,res)=>{
     // check if all fields are specified
     const {username, password, email, name} = req.body;
     if(!username || !password || !email || !name){
@@ -88,19 +102,34 @@ app.post('/users',async(req,res)=>{
 //     otherwise, send {ok:true}
 //   use .catch(error=>res.send({error})) to catch and send other errors
 
-app.patch('/users/:username', (req, res) => {
-    const { username } = req.params;
-    const updates = req.body;
+app.patch('/users/update', (req, res) => {
+    
+    const {username, email,token,name} = req.body;
 
-    db.update({ username }, { $set: updates })
-        .then(updatedCount => {
-            if (updatedCount === 0) {
-                res.send({ error: 'Could not insert to the database.' });
-            } else {
-                res.send({ ok: true });
+    db.findOne({ username })
+        .then(doc => {
+            if (!doc) {
+                return res.send({ error: 'Username not found.' });
             }
+            
+            if (doc.authToken !== token){
+                return res.send({message : "You are not authorized to update this user."});
+            }
+            if (doc.authToken === token){
+                db.update({ username }, { $set: {name:name, email:email} })
+                .then(updatedCount => {
+                    if (updatedCount === 0) {
+                        res.send({ error: 'Could not insert to the database.' });
+                    } else {
+                        res.send({ ok: true });
+                    }
+                })
+                .catch(error => res.send({ error }));
+            }
+    
         })
-        .catch(error => res.send({ error }));
+
+    
 });
 
 
@@ -112,9 +141,17 @@ app.patch('/users/:username', (req, res) => {
 //     otherwise, send {ok:true}
 //   use .catch(error=>res.send({error})) to catch and send other errors
 
-app.delete('/users/:username',(req,res)=>{
-    const { username } = req.params;
-
+app.delete('/users/:username/:authenticationToken',(req,res)=>{
+    const { username, authenticationToken} = req.params;
+    db.findOne({username:username})
+        .then(doc=>{
+            if (!doc) {
+                return res.send({ error: 'Username not found.' });
+            }
+            if (authenticationToken !==  doc.authToken ){
+                return res.send({message : "You are not authorized to delete this user."});
+            }
+        })
     db.deleteOne({ username })
         .then(deletedCount => {
             if (deletedCount === 0) {
@@ -126,9 +163,9 @@ app.delete('/users/:username',(req,res)=>{
         .catch(error => res.send({ error }));   
 })
 
-app.get('/users/:authtoken', (req, res) => {
-    const { authToken } = req.params;
-    db.findOne({ authToken })
+app.post('/userInfo', (req, res) => {
+    const { authToken } = req.body;
+    db.findOne({authToken})
         .then(doc => {
             if (doc) {
                 res.send({username: doc.username, email: doc.email, name: doc.name});
@@ -137,7 +174,7 @@ app.get('/users/:authtoken', (req, res) => {
             }
         })
         .catch(error => res.send({ error }));
-});
+});``
 
 // default route
 app.all('*',(req,res)=>{res.status(404).send('Invalid URL.')});
